@@ -13,13 +13,9 @@ def _():
 @app.cell
 def example10_2():
     import polars as pl
+    import numpy as np
     from scipy.stats import f
-
-    def i_j(df: pl.DataFrame, column_name: str):
-        """Get I and J values from data."""
-        i = df.shape[0]
-        j = df.get_column(column_name).list.len().min()
-        return (i, j)
+    from typing import List
 
 
     def dfn(i):
@@ -39,13 +35,17 @@ def example10_2():
         return f.ppf(1 - alpha, ndf, ddf)
 
 
+    def grand_mean(sample_means: pl.Series):
+        return sample_means.mean()
+
+
     def mstr(sample_means: pl.Series, i: int, j: int):
         """Calculate mean square for treatments."""
-        sum = 0
-        grand_mean = sample_means.mean()
-        for mean in sample_means:
-            sum += pow(mean - grand_mean, 2)
-        return (j / (i - 1)) * sum
+        _sum = 0
+        _grand_mean = grand_mean(sample_means)
+        for _mean in sample_means:
+            _sum += pow(_mean - _grand_mean, 2)
+        return (j / (i - 1)) * _sum
 
 
     def mse(sample_sd: pl.Series, i: int):
@@ -55,7 +55,7 @@ def example10_2():
 
 
     def f_test(sample_means: pl.Series, sample_sd: pl.Series, i: int, j: int):
-        """Perform f-test."""
+        """Get f value from f-test."""
         _mstr = mstr(sample_means, i, j)
         _mse = mse(sample_sd, i)
         return _mstr / _mse
@@ -66,51 +66,135 @@ def example10_2():
         return 1 - f.cdf(_f_test, dfn(i), dfd(i, j))
 
 
-    # def sst(data: pl.DataFrame):
+    class Data:
+        data_key = "data"
+        s_mean_key = "sample mean"
+        s_var_key = "sample variance"
+        s_sd_key = "sample standard deviation"
+
+        def __init__(self, data: List[List[float]], alpha: float = 0.05):
+            self.alpha = alpha
+            self.df = (
+                pl.DataFrame(
+                    {
+                        Data.data_key: data,
+                    }
+                )
+                .with_columns(
+                    [pl.col(Data.data_key).list.mean().alias(Data.s_mean_key)]
+                )
+                .with_columns(
+                    [pl.col(Data.data_key).list.var().alias(Data.s_var_key)]
+                )
+                .with_columns(
+                    [pl.col(Data.data_key).list.std().alias(Data.s_sd_key)]
+                )
+            )
+
+        def sample_means(self):
+            """Get sample means."""
+            return self.df.select(Data.s_mean_key).to_series()
+
+        def sample_standard_deviations(self):
+            """Get sample standard deviations."""
+            return self.df.select(Data.s_sd_key).to_series()
+
+        def grand_mean(self):
+            """Calculate grand mean."""
+            return grand_mean(self.sample_means())
+
+        def grand_sum(self):
+            """Calculate grand sum."""
+            return np.concatenate(self.df[Data.data_key].to_numpy()).sum()
+
+        def i(self):
+            """Get the i value."""
+            return self.df.shape[0]
+
+        def j(self):
+            """Get the j value."""
+            len_list = self.df.get_column(Data.data_key).list.len()
+            assert len_list.n_unique() == 1
+            return len_list.first()
+
+        def dfn(self):
+            """Calculate degrees of freedom for numerator."""
+            return dfn(self.i())
+
+        def dfd(self):
+            """Calculate degrees of freedom for denominator."""
+            return dfd(self.i(), self.j())
+
+        def f_critical(self):
+            """Calculate f-critical value."""
+            return f_critical(self.alpha, self.i(), self.j())
+
+        def mstr(self):
+            """Calculate mean square for treatments."""
+            sample_means = self.sample_means()
+            return mstr(sample_means, self.i(), self.j())
+
+        def mse(self):
+            """Calculate mean square error."""
+            sample_sd = self.sample_standard_deviations()
+            return mse(sample_sd, self.i())
+
+        def sst(self):
+            """Calculate the total sum squares."""
+            _ij = self.i() * self.j()
+            _flattened = np.concatenate(self.df[Data.data_key].to_numpy())
+            _first_term = np.square(_flattened).sum()
+            return _first_term - (pow(self.grand_sum(), 2) / _ij)
+
+        def sstr(self):
+            """Calculate the treatment sum squares."""
+            _rows = self.df[Data.data_key].to_numpy()
+            _first_term = (
+                np.array([_row.sum() ** 2 for _row in _rows]).sum() / self.j()
+            )
+            _second_term = pow(self.grand_sum(), 2) / (self.i() * self.j())
+            return _first_term - _second_term
+
+        def sse(self):
+            """Calculate error of sum squares."""
+            _df = (
+                pl.DataFrame({"data": self.df[Data.data_key]})
+                .with_columns([pl.col("data").list.mean().alias("mean")])
+                .with_columns(
+                    [
+                        pl.struct(["data", "mean"])
+                        .map_elements(
+                            lambda x: [pow(v - x["mean"], 2) for v in x["data"]],
+                            return_dtype=pl.List(pl.Float64),
+                        )
+                        .alias("data_minus_mean")
+                    ]
+                )
+            )
+            return np.concatenate(_df["data_minus_mean"].to_numpy()).sum()
+
+        def f_test(self):
+            """Get f value from f-test."""
+            sample_means = self.sample_means()
+            sample_sd = self.sample_standard_deviations()
+            return f_test(sample_means, sample_sd, self.i(), self.j())
+
+        def f_test_pvalue(self):
+            """Calculate p-value for f-test."""
+            _f_test = self.f_test()
+            return 1 - f.cdf(_f_test, self.dfn(), self.dfd())
 
 
     def example10_2():
-        # Represent data as DataFrame.
-        compression_strength_key = "compression_strength_lbs"
-        df = (
-            pl.DataFrame(
-                {
-                    "type_of_box": [1, 2, 3, 4],
-                    compression_strength_key: [
-                        [655.5, 788.3, 734.3, 721.4, 679.1, 699.4],
-                        [789.2, 772.5, 786.9, 686.1, 732.1, 774.8],
-                        [737.1, 639.0, 696.3, 671.7, 717.2, 727.1],
-                        [535.1, 628.7, 542.4, 559.0, 586.9, 520.0],
-                    ],
-                }
-            )
-            .with_columns(
-                [pl.col(compression_strength_key).list.mean().alias("sample mean")]
-            )
-            .with_columns(
-                [
-                    pl.col(compression_strength_key)
-                    .list.var()
-                    .alias("sample variance")
-                ]
-            )
-            .with_columns(
-                [
-                    pl.col(compression_strength_key)
-                    .list.std()
-                    .alias("sample standard deviation")
-                ]
-            )
-        )
-
-        sample_means = df.select("sample mean").to_series()
-        sample_sd = df.select("sample standard deviation").to_series()
-
-        alpha = 0.05
-        (i, j) = i_j(df, compression_strength_key)
-        _f_critical = f_critical(alpha, i, j)
-        _f_test = f_test(sample_means, sample_sd, i, j)
-
+        data = [
+            [655.5, 788.3, 734.3, 721.4, 679.1, 699.4],
+            [789.2, 772.5, 786.9, 686.1, 732.1, 774.8],
+            [737.1, 639.0, 696.3, 671.7, 717.2, 727.1],
+            [535.1, 628.7, 542.4, 559.0, 586.9, 520.0],
+        ]
+        data = Data(data)
+        _f_critical = data.f_critical()
+        _f_test = data.f_test()
         print(f"f-critical value: {_f_critical}")
         print(f"f-test: {_f_test}")
 
@@ -129,6 +213,18 @@ def example10_2():
         print(f"f-critical value: {_f_critical}")
         print(f"f-test: {_f_test}")
         print(f"p-value: {_p_value}")
+
+
+    def example10_4():
+        data = [
+            [0.56, 1.12, 0.90, 1.07, 0.94],
+            [0.72, 0.69, 0.87, 0.78, 0.91],
+            [0.62, 1.08, 1.07, 0.99, 0.93],
+        ]
+        data = Data(data)
+        print(f"sst: {data.sst()}")
+        print(f"sstr: {data.sstr()}")
+        print(f"sse: {data.sse()}")
 
 
     def problem1():
@@ -174,78 +270,67 @@ def example10_2():
 
 
     def problem6():
-        df = (
-            pl.DataFrame(
-                {
-                    "data": [
-                        [
-                            20.5,
-                            28.1,
-                            27.8,
-                            27.0,
-                            28.0,
-                            25.2,
-                            25.3,
-                            27.1,
-                            20.5,
-                            31.3,
-                        ],
-                        [
-                            26.3,
-                            24.0,
-                            26.2,
-                            20.2,
-                            23.7,
-                            34.0,
-                            17.1,
-                            26.8,
-                            23.7,
-                            24.9,
-                        ],
-                        [
-                            29.5,
-                            34.0,
-                            27.5,
-                            29.4,
-                            27.9,
-                            26.2,
-                            29.9,
-                            29.5,
-                            30.0,
-                            35.6,
-                        ],
-                        [
-                            36.5,
-                            44.2,
-                            34.1,
-                            30.3,
-                            31.4,
-                            33.1,
-                            34.1,
-                            32.9,
-                            36.3,
-                            25.5,
-                        ],
-                    ]
-                }
-            )
-            .with_columns([pl.col("data").list.mean().alias("sample mean")])
-            .with_columns([pl.col("data").list.var().alias("sample variance")])
-            .with_columns(
-                [pl.col("data").list.std().alias("sample standard deviation")]
-            )
-        )
+        data = [
+            [
+                20.5,
+                28.1,
+                27.8,
+                27.0,
+                28.0,
+                25.2,
+                25.3,
+                27.1,
+                20.5,
+                31.3,
+            ],
+            [
+                26.3,
+                24.0,
+                26.2,
+                20.2,
+                23.7,
+                34.0,
+                17.1,
+                26.8,
+                23.7,
+                24.9,
+            ],
+            [
+                29.5,
+                34.0,
+                27.5,
+                29.4,
+                27.9,
+                26.2,
+                29.9,
+                29.5,
+                30.0,
+                35.6,
+            ],
+            [
+                36.5,
+                44.2,
+                34.1,
+                30.3,
+                31.4,
+                33.1,
+                34.1,
+                32.9,
+                36.3,
+                25.5,
+            ],
+        ]
+        data = Data(data)
 
-        sample_means = df.select("sample mean").to_series()
-        sample_sd = df.select("sample standard deviation").to_series()
-
-        alpha = 0.01
-        (i, j) = i_j(df, "data")
-        _f_critical = f_critical(alpha, i, j)
-        _f_test = f_test(sample_means, sample_sd, i, j)
+        _f_critical = data.f_critical()
+        _f_test = data.f_test()
+        _sst = data.sst()
+        _total_ms = data.mstr() + data.mse()
 
         print(f"f-critical value: {_f_critical}")
         print(f"f-test: {_f_test}")
+        print(f"sst: {_sst}")
+        print(f"total mean square(?): {_total_ms}")
 
 
     problem6()
