@@ -11,12 +11,15 @@ def _():
 
 
 @app.cell
-def example10_2():
+def chapter10():
     import polars as pl
     import numpy as np
     from scipy.stats import f
     from typing import List
 
+    def total_df(i, j):
+        """Get total degrees of freedom."""
+        return i*j - 1
 
     def dfn(i):
         """Calculate degrees of freedom for numerator."""
@@ -117,6 +120,10 @@ def example10_2():
             assert len_list.n_unique() == 1
             return len_list.first()
 
+        def total_df(self):
+            """Get total degrees of freedom."""
+            return total_df(self.i(), self.j())
+
         def dfn(self):
             """Calculate degrees of freedom for numerator."""
             return dfn(self.i())
@@ -173,167 +180,182 @@ def example10_2():
             )
             return np.concatenate(_df["data_minus_mean"].to_numpy()).sum()
 
-        def f_test(self):
-            """Get f value from f-test."""
+        def f_test_statistic(self):
+            """Get f test statistic."""
             sample_means = self.sample_means()
             sample_sd = self.sample_standard_deviations()
             return f_test(sample_means, sample_sd, self.i(), self.j())
 
         def f_test_pvalue(self):
             """Calculate p-value for f-test."""
-            _f_test = self.f_test()
+            _f_test = self.f_test_statistic()
             return 1 - f.cdf(_f_test, self.dfn(), self.dfd())
 
+        def anova_table(self):
+            print(f"treatments degrees of freedom: {self.dfn()}")
+            print(f"treatment sum of squares (SSTr): {self.sstr()}")
+            print(f"mean square for treatments (MSTr): {self.mstr()}")
+            print("---------------------------------------------------")
+            print(f"error degrees of freedom: {self.dfd()}")
+            print(f"error sum of squares (SSE): {self.sse()}")
+            print(f"mean square for error (MSE): {self.mse()}")
+            print("---------------------------------------------------")
+            print(f"total degrees of freedom: {self.total_df()}")
+            print(f"total sum of squares (SST): {self.sst()}")
+            print("---------------------------------------------------")
+            print(f"f critical value: {self.f_critical()}")
+            print(f"f test statistic: {self.f_test_statistic()}")
+            print(f"f test p value: {self.f_test_pvalue()}")
 
-    def example10_2():
-        data = [
-            [655.5, 788.3, 734.3, 721.4, 679.1, 699.4],
-            [789.2, 772.5, 786.9, 686.1, 732.1, 774.8],
-            [737.1, 639.0, 696.3, 671.7, 717.2, 727.1],
-            [535.1, 628.7, 542.4, 559.0, 586.9, 520.0],
-        ]
-        data = Data(data)
-        _f_critical = data.f_critical()
-        _f_test = data.f_test()
-        print(f"f-critical value: {_f_critical}")
-        print(f"f-test: {_f_test}")
+    def section10_1():
 
-
-    def example10_3():
-        _sample_means = pl.Series([10.5, 14.8, 15.7, 16.0, 21.6])
-        _sample_sd = pl.Series([4.5, 6.8, 6.5, 6.7, 6.0])
-        _i = 5
-        _j = 10
-
-        alpha = 0.01
-        _f_critical = f_critical(alpha, _i, _j)
-        _f_test = f_test(_sample_means, _sample_sd, _i, _j)
-        _p_value = f_test_pvalue(_f_test, _i, _j)
-
-        print(f"f-critical value: {_f_critical}")
-        print(f"f-test: {_f_test}")
-        print(f"p-value: {_p_value}")
+        def example10_2():
+            data = [
+                [655.5, 788.3, 734.3, 721.4, 679.1, 699.4],
+                [789.2, 772.5, 786.9, 686.1, 732.1, 774.8],
+                [737.1, 639.0, 696.3, 671.7, 717.2, 727.1],
+                [535.1, 628.7, 542.4, 559.0, 586.9, 520.0],
+            ]
+            data = Data(data)
+            data.anova_table()
 
 
-    def example10_4():
-        data = [
-            [0.56, 1.12, 0.90, 1.07, 0.94],
-            [0.72, 0.69, 0.87, 0.78, 0.91],
-            [0.62, 1.08, 1.07, 0.99, 0.93],
-        ]
-        data = Data(data)
-        print(f"sst: {data.sst()}")
-        print(f"sstr: {data.sstr()}")
-        print(f"sse: {data.sse()}")
+        def example10_3():
+            _sample_means = pl.Series([10.5, 14.8, 15.7, 16.0, 21.6])
+            _sample_sd = pl.Series([4.5, 6.8, 6.5, 6.7, 6.0])
+            _i = 5
+            _j = 10
 
+            alpha = 0.01
+            _f_critical = f_critical(alpha, _i, _j)
+            _f_test = f_test(_sample_means, _sample_sd, _i, _j)
+            _p_value = f_test_pvalue(_f_test, _i, _j)
 
-    def problem1():
-        """Page 400"""
-        _i = 5
-        _j = 4
-        _mstr = 2673.3
-        _mse = 1094.2
-
-        def a():
-            _alpha = 0.05
-            _f_critical = f_critical(_alpha, _i, _j)
-            _f_test = _mstr / _mse
-            print(f"f-critical: {_f_critical}")
+            print(f"f-critical value: {_f_critical}")
             print(f"f-test: {_f_test}")
-
-        def b():
-            pvalue = f_test_pvalue(_mstr / _mse, _i, _j)
-            print(f"pvalue: {pvalue}")
-
-        a()
-        b()
+            print(f"p-value: {_p_value}")
 
 
-    def problem5():
-        _sample_means = pl.Series([1.63, 1.56, 1.42])
-        _sample_sd = pl.Series([0.27, 0.24, 0.26])
-        _i = 3
-        _j = 10
-        _alpha = 0.05
-
-        _f_critical = f_critical(_alpha, _i, _j)
-        _f_test = f_test(_sample_means, _sample_sd, _i, _j)
-        _p_value = f_test_pvalue(_f_test, _i, _j)
-        _mstr = mstr(_sample_means, _i, _j)
-        _mse = mse(_sample_sd, _i)
-
-        print(f"f-critical value: {_f_critical}")
-        print(f"mstr: {_mstr}")
-        print(f"mse: {_mse}")
-        print(f"f-test: {_f_test}")
-        print(f"p-value: {_p_value}")
+        def example10_4():
+            data = [
+                [0.56, 1.12, 0.90, 1.07, 0.94],
+                [0.72, 0.69, 0.87, 0.78, 0.91],
+                [0.62, 1.08, 1.07, 0.99, 0.93],
+            ]
+            data = Data(data, alpha=0.01)
+            data.anova_table()
 
 
-    def problem6():
-        data = [
-            [
-                20.5,
-                28.1,
-                27.8,
-                27.0,
-                28.0,
-                25.2,
-                25.3,
-                27.1,
-                20.5,
-                31.3,
-            ],
-            [
-                26.3,
-                24.0,
-                26.2,
-                20.2,
-                23.7,
-                34.0,
-                17.1,
-                26.8,
-                23.7,
-                24.9,
-            ],
-            [
-                29.5,
-                34.0,
-                27.5,
-                29.4,
-                27.9,
-                26.2,
-                29.9,
-                29.5,
-                30.0,
-                35.6,
-            ],
-            [
-                36.5,
-                44.2,
-                34.1,
-                30.3,
-                31.4,
-                33.1,
-                34.1,
-                32.9,
-                36.3,
-                25.5,
-            ],
-        ]
-        data = Data(data)
+        def problem1():
+            """Page 400"""
+            _i = 5
+            _j = 4
+            _mstr = 2673.3
+            _mse = 1094.2
 
-        _f_critical = data.f_critical()
-        _f_test = data.f_test()
-        _sst = data.sst()
-        _total_ms = data.mstr() + data.mse()
+            def a():
+                _alpha = 0.05
+                _f_critical = f_critical(_alpha, _i, _j)
+                _f_test = _mstr / _mse
+                print(f"f-critical: {_f_critical}")
+                print(f"f-test: {_f_test}")
 
-        print(f"f-critical value: {_f_critical}")
-        print(f"f-test: {_f_test}")
-        print(f"sst: {_sst}")
-        print(f"total mean square(?): {_total_ms}")
+            def b():
+                pvalue = f_test_pvalue(_mstr / _mse, _i, _j)
+                print(f"pvalue: {pvalue}")
+
+            a()
+            b()
 
 
-    problem6()
+        def problem5():
+            _sample_means = pl.Series([1.63, 1.56, 1.42])
+            _sample_sd = pl.Series([0.27, 0.24, 0.26])
+            _i = 3
+            _j = 10
+            _alpha = 0.05
+
+            _f_critical = f_critical(_alpha, _i, _j)
+            _f_test = f_test(_sample_means, _sample_sd, _i, _j)
+            _p_value = f_test_pvalue(_f_test, _i, _j)
+            _mstr = mstr(_sample_means, _i, _j)
+            _mse = mse(_sample_sd, _i)
+
+            print(f"f-critical value: {_f_critical}")
+            print(f"mstr: {_mstr}")
+            print(f"mse: {_mse}")
+            print(f"f-test: {_f_test}")
+            print(f"p-value: {_p_value}")
+
+
+        def problem6():
+            data = [
+                [
+                    20.5,
+                    28.1,
+                    27.8,
+                    27.0,
+                    28.0,
+                    25.2,
+                    25.3,
+                    27.1,
+                    20.5,
+                    31.3,
+                ],
+                [
+                    26.3,
+                    24.0,
+                    26.2,
+                    20.2,
+                    23.7,
+                    34.0,
+                    17.1,
+                    26.8,
+                    23.7,
+                    24.9,
+                ],
+                [
+                    29.5,
+                    34.0,
+                    27.5,
+                    29.4,
+                    27.9,
+                    26.2,
+                    29.9,
+                    29.5,
+                    30.0,
+                    35.6,
+                ],
+                [
+                    36.5,
+                    44.2,
+                    34.1,
+                    30.3,
+                    31.4,
+                    33.1,
+                    34.1,
+                    32.9,
+                    36.3,
+                    25.5,
+                ],
+            ]
+            data = Data(data)
+            data.anova_table()
+
+        def problem8():
+            data = [
+                [309.2, 409.5, 311.0, 326.5, 316.8, 349.8, 309.7],
+                [402.1, 347.2, 361.0, 404.5, 331.0, 348.9, 381.7],
+                [392.4, 366.2, 351.0, 357.1, 409.9, 367.3, 382.0],
+                [346.7, 452.9, 461.4, 433.1, 410.6, 384.2, 362.6],
+                [407.4, 441.8, 419.9, 410.7, 473.4, 441.2, 465.8],
+            ]
+            data = Data(data)
+            data.anova_table()
+
+        problem8()
+
+    section10_1()
     return
 
 
