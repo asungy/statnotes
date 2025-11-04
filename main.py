@@ -17,17 +17,19 @@ def chapter10():
     from scipy.stats import f
     from typing import List
 
+
     def total_df(i, j):
         """Get total degrees of freedom."""
-        return i*j - 1
+        return i * j - 1
+
 
     def dfn(i):
-        """Calculate degrees of freedom for numerator."""
+        """Calculate degrees of freedom for numerator (treatments)."""
         return i - 1
 
 
     def dfd(i, j):
-        """Calculate degrees of freedom for denominator."""
+        """Calculate degrees of freedom for denominator (error)."""
         return i * (j - 1)
 
 
@@ -39,6 +41,7 @@ def chapter10():
 
 
     def grand_mean(sample_means: pl.Series):
+        """Calculate the grand mean."""
         return sample_means.mean()
 
 
@@ -57,19 +60,19 @@ def chapter10():
         return sum / i
 
 
-    def f_test(sample_means: pl.Series, sample_sd: pl.Series, i: int, j: int):
-        """Get f value from f-test."""
+    def f_test_statistic(sample_means: pl.Series, sample_sd: pl.Series, i: int, j: int):
+        """Get f test statistic."""
         _mstr = mstr(sample_means, i, j)
         _mse = mse(sample_sd, i)
         return _mstr / _mse
 
 
-    def f_test_pvalue(_f_test, i, j):
+    def f_test_pvalue(_f_test_statistic, i, j):
         """Calculate p-value for f-test."""
-        return 1 - f.cdf(_f_test, dfn(i), dfd(i, j))
+        return 1 - f.cdf(_f_test_statistic, dfn(i), dfd(i, j))
 
 
-    class Data:
+    class AnovaWithData:
         data_key = "data"
         s_mean_key = "sample mean"
         s_var_key = "sample variance"
@@ -80,27 +83,39 @@ def chapter10():
             self.df = (
                 pl.DataFrame(
                     {
-                        Data.data_key: data,
+                        AnovaWithData.data_key: data,
                     }
                 )
                 .with_columns(
-                    [pl.col(Data.data_key).list.mean().alias(Data.s_mean_key)]
+                    [
+                        pl.col(AnovaWithData.data_key)
+                        .list.mean()
+                        .alias(AnovaWithData.s_mean_key)
+                    ]
                 )
                 .with_columns(
-                    [pl.col(Data.data_key).list.var().alias(Data.s_var_key)]
+                    [
+                        pl.col(AnovaWithData.data_key)
+                        .list.var()
+                        .alias(AnovaWithData.s_var_key)
+                    ]
                 )
                 .with_columns(
-                    [pl.col(Data.data_key).list.std().alias(Data.s_sd_key)]
+                    [
+                        pl.col(AnovaWithData.data_key)
+                        .list.std()
+                        .alias(AnovaWithData.s_sd_key)
+                    ]
                 )
             )
 
         def sample_means(self):
             """Get sample means."""
-            return self.df.select(Data.s_mean_key).to_series()
+            return self.df.select(AnovaWithData.s_mean_key).to_series()
 
         def sample_standard_deviations(self):
             """Get sample standard deviations."""
-            return self.df.select(Data.s_sd_key).to_series()
+            return self.df.select(AnovaWithData.s_sd_key).to_series()
 
         def grand_mean(self):
             """Calculate grand mean."""
@@ -108,7 +123,9 @@ def chapter10():
 
         def grand_sum(self):
             """Calculate grand sum."""
-            return np.concatenate(self.df[Data.data_key].to_numpy()).sum()
+            return np.concatenate(
+                self.df[AnovaWithData.data_key].to_numpy()
+            ).sum()
 
         def i(self):
             """Get the i value."""
@@ -116,7 +133,9 @@ def chapter10():
 
         def j(self):
             """Get the j value."""
-            len_list = self.df.get_column(Data.data_key).list.len()
+            len_list = self.df.get_column(
+                AnovaWithData.data_key
+            ).list.len()
             assert len_list.n_unique() == 1
             return len_list.first()
 
@@ -125,7 +144,7 @@ def chapter10():
             return total_df(self.i(), self.j())
 
         def dfn(self):
-            """Calculate degrees of freedom for numerator."""
+            """Calculate degrees of freedom for numerator (treatments)."""
             return dfn(self.i())
 
         def dfd(self):
@@ -149,13 +168,15 @@ def chapter10():
         def sst(self):
             """Calculate the total sum squares."""
             _ij = self.i() * self.j()
-            _flattened = np.concatenate(self.df[Data.data_key].to_numpy())
+            _flattened = np.concatenate(
+                self.df[AnovaWithData.data_key].to_numpy()
+            )
             _first_term = np.square(_flattened).sum()
             return _first_term - (pow(self.grand_sum(), 2) / _ij)
 
         def sstr(self):
             """Calculate the treatment sum squares."""
-            _rows = self.df[Data.data_key].to_numpy()
+            _rows = self.df[AnovaWithData.data_key].to_numpy()
             _first_term = (
                 np.array([_row.sum() ** 2 for _row in _rows]).sum() / self.j()
             )
@@ -165,7 +186,7 @@ def chapter10():
         def sse(self):
             """Calculate error of sum squares."""
             _df = (
-                pl.DataFrame({"data": self.df[Data.data_key]})
+                pl.DataFrame({"data": self.df[AnovaWithData.data_key]})
                 .with_columns([pl.col("data").list.mean().alias("mean")])
                 .with_columns(
                     [
@@ -184,14 +205,14 @@ def chapter10():
             """Get f test statistic."""
             sample_means = self.sample_means()
             sample_sd = self.sample_standard_deviations()
-            return f_test(sample_means, sample_sd, self.i(), self.j())
+            return f_test_statistic(sample_means, sample_sd, self.i(), self.j())
 
         def f_test_pvalue(self):
             """Calculate p-value for f-test."""
             _f_test = self.f_test_statistic()
             return 1 - f.cdf(_f_test, self.dfn(), self.dfd())
 
-        def anova_table(self):
+        def print(self):
             print(f"treatments degrees of freedom: {self.dfn()}")
             print(f"treatment sum of squares (SSTr): {self.sstr()}")
             print(f"mean square for treatments (MSTr): {self.mstr()}")
@@ -207,8 +228,81 @@ def chapter10():
             print(f"f test statistic: {self.f_test_statistic()}")
             print(f"f test p value: {self.f_test_pvalue()}")
 
-    def section10_1():
 
+    class AnovaWithoutData:
+        def __init__(self, sample_means: pl.Series, sample_sd: pl.Series, i: int, j: int, alpha: float = 0.05):
+            self.sample_means = sample_means
+            self.sample_sd = sample_sd
+            self.i = i
+            self.j = j
+            self.alpha = alpha
+
+        def grand_mean(self):
+            """Calculate the grand mean."""
+            return grand_mean(self.sample_means)
+
+        def dfn(self):
+            """Calculate degrees of freedom for numerator (treatments)."""
+            return dfn(self.i)
+
+        def dfd(self):
+            """Calculate degrees of freedom for denominator (error)."""
+            return dfd(self.i, self.j)
+
+        def total_df(self):
+            """Get total degrees of freedom."""
+            return total_df(self.i, self.j)
+
+        def mstr(self):
+            """Calculate mean square for treatments."""
+            return mstr(self.sample_means, self.i, self.j)
+
+        def mse(self):
+            """Calculate mean square error."""
+            return mse(self.sample_sd, self.i)
+
+        def f_test_statistic(self):
+            """Get f test statistic."""
+            return f_test_statistic(self.sample_means, self.sample_sd, self.i, self.j)
+
+        def f_test_pvalue(self):
+            """Calculate p-value for f-test."""
+            return f_test_pvalue(self.f_test_statistic(), self.i, self.j)
+
+        def f_critical(self):
+            """Calculate f-critical value."""
+            return f_critical(self.alpha, self.i, self.j)
+
+        def sst(self):
+            """Calculate the total sum squares."""
+            return self.sstr() + self.sse()
+
+        def sstr(self):
+            """Calculate the treatment sum squares."""
+            return self.mstr() * self.dfn()
+
+        def sse(self):
+            """Calculate error of sum squares."""
+            return self.mse() * self.dfd()
+
+        def print(self):
+            print(f"treatments degrees of freedom: {self.dfn()}")
+            print(f"treatment sum of squares (SSTr): {self.sstr()}")
+            print(f"mean square for treatments (MSTr): {self.mstr()}")
+            print("---------------------------------------------------")
+            print(f"error degrees of freedom: {self.dfd()}")
+            print(f"error sum of squares (SSE): {self.sse()}")
+            print(f"mean square for error (MSE): {self.mse()}")
+            print("---------------------------------------------------")
+            print(f"total degrees of freedom: {self.total_df()}")
+            print(f"total sum of squares (SST): {self.sst()}")
+            print("---------------------------------------------------")
+            print(f"f critical value: {self.f_critical()}")
+            print(f"f test statistic: {self.f_test_statistic()}")
+            print(f"f test p value: {self.f_test_pvalue()}")
+
+
+    def section10_1():
         def example10_2():
             data = [
                 [655.5, 788.3, 734.3, 721.4, 679.1, 699.4],
@@ -216,25 +310,17 @@ def chapter10():
                 [737.1, 639.0, 696.3, 671.7, 717.2, 727.1],
                 [535.1, 628.7, 542.4, 559.0, 586.9, 520.0],
             ]
-            data = Data(data)
-            data.anova_table()
-
+            data = AnovaWithData(data)
+            data.print()
 
         def example10_3():
             _sample_means = pl.Series([10.5, 14.8, 15.7, 16.0, 21.6])
             _sample_sd = pl.Series([4.5, 6.8, 6.5, 6.7, 6.0])
             _i = 5
             _j = 10
-
-            alpha = 0.01
-            _f_critical = f_critical(alpha, _i, _j)
-            _f_test = f_test(_sample_means, _sample_sd, _i, _j)
-            _p_value = f_test_pvalue(_f_test, _i, _j)
-
-            print(f"f-critical value: {_f_critical}")
-            print(f"f-test: {_f_test}")
-            print(f"p-value: {_p_value}")
-
+            _alpha = 0.01
+            anova = AnovaWithoutData(_sample_means, _sample_sd, _i, _j, _alpha)
+            anova.print()
 
         def example10_4():
             data = [
@@ -242,9 +328,8 @@ def chapter10():
                 [0.72, 0.69, 0.87, 0.78, 0.91],
                 [0.62, 1.08, 1.07, 0.99, 0.93],
             ]
-            data = Data(data, alpha=0.01)
-            data.anova_table()
-
+            data = AnovaWithData(data, alpha=0.01)
+            data.print()
 
         def problem1():
             """Page 400"""
@@ -267,7 +352,6 @@ def chapter10():
             a()
             b()
 
-
         def problem5():
             _sample_means = pl.Series([1.63, 1.56, 1.42])
             _sample_sd = pl.Series([0.27, 0.24, 0.26])
@@ -276,7 +360,7 @@ def chapter10():
             _alpha = 0.05
 
             _f_critical = f_critical(_alpha, _i, _j)
-            _f_test = f_test(_sample_means, _sample_sd, _i, _j)
+            _f_test = f_test_statistic(_sample_means, _sample_sd, _i, _j)
             _p_value = f_test_pvalue(_f_test, _i, _j)
             _mstr = mstr(_sample_means, _i, _j)
             _mse = mse(_sample_sd, _i)
@@ -286,7 +370,6 @@ def chapter10():
             print(f"mse: {_mse}")
             print(f"f-test: {_f_test}")
             print(f"p-value: {_p_value}")
-
 
         def problem6():
             data = [
@@ -339,8 +422,8 @@ def chapter10():
                     25.5,
                 ],
             ]
-            data = Data(data)
-            data.anova_table()
+            data = AnovaWithData(data)
+            data.print()
 
         def problem8():
             data = [
@@ -350,10 +433,14 @@ def chapter10():
                 [346.7, 452.9, 461.4, 433.1, 410.6, 384.2, 362.6],
                 [407.4, 441.8, 419.9, 410.7, 473.4, 441.2, 465.8],
             ]
-            data = Data(data)
-            data.anova_table()
+            data = AnovaWithData(data)
+            data.print()
 
-        problem8()
+        example10_3()
+
+    def section10_2():
+        def example10_5():
+            _sample_means = pl.Series([])
 
     section10_1()
     return
