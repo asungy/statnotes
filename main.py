@@ -12,10 +12,12 @@ def _():
 
 @app.cell
 def chapter10():
+    import math
     import polars as pl
     import numpy as np
     from scipy.stats import f
     from typing import List
+    from scipy.stats import studentized_range
 
 
     def total_df(i, j):
@@ -71,6 +73,17 @@ def chapter10():
         """Calculate p-value for f-test."""
         return 1 - f.cdf(_f_test_statistic, dfn(i), dfd(i, j))
 
+    def q_critical(_alpha, _i, _j):
+        return studentized_range.ppf(1-_alpha, _i, dfd(_i, _j))
+
+    def w(_sample_sd: pl.Series, _i: int, _j: int, _alpha: float):
+        _q_critical = q_critical(_alpha, _i, _j)
+        _sqrt_mse_j = math.sqrt(mse(_sample_sd, _i)/_j)
+        return _q_critical * _sqrt_mse_j
+
+    def sorted_sample_means(_sample_means: pl.Series):
+        return _sample_means.sort()
+
 
     class AnovaWithData:
         data_key = "data"
@@ -113,9 +126,12 @@ def chapter10():
             """Get sample means."""
             return self.df.select(AnovaWithData.s_mean_key).to_series()
 
-        def sample_standard_deviations(self):
+        def sample_sd(self):
             """Get sample standard deviations."""
             return self.df.select(AnovaWithData.s_sd_key).to_series()
+
+        def sorted_sample_means(self):
+            return sorted_sample_means(self.sample_means())
 
         def grand_mean(self):
             """Calculate grand mean."""
@@ -162,7 +178,7 @@ def chapter10():
 
         def mse(self):
             """Calculate mean square error."""
-            sample_sd = self.sample_standard_deviations()
+            sample_sd = self.sample_sd()
             return mse(sample_sd, self.i())
 
         def sst(self):
@@ -204,13 +220,19 @@ def chapter10():
         def f_test_statistic(self):
             """Get f test statistic."""
             sample_means = self.sample_means()
-            sample_sd = self.sample_standard_deviations()
+            sample_sd = self.sample_sd()
             return f_test_statistic(sample_means, sample_sd, self.i(), self.j())
 
         def f_test_pvalue(self):
             """Calculate p-value for f-test."""
             _f_test = self.f_test_statistic()
             return 1 - f.cdf(_f_test, self.dfn(), self.dfd())
+
+        def w(self):
+            return w(self.sample_sd(), self.i(), self.j(), self.alpha)
+
+        def q_critical(self):
+            return q_critical(self.alpha, self.i(), self.j())
 
         def print(self):
             print(f"treatments degrees of freedom: {self.dfn()}")
@@ -236,6 +258,9 @@ def chapter10():
             self.i = i
             self.j = j
             self.alpha = alpha
+
+        def sorted_sample_means(self):
+            return sorted_sample_means(self.sample_means)
 
         def grand_mean(self):
             """Calculate the grand mean."""
@@ -285,6 +310,12 @@ def chapter10():
             """Calculate error of sum squares."""
             return self.mse() * self.dfd()
 
+        def w(self):
+            return w(self.sample_sd, self.i, self.j, self.alpha)
+
+        def q_critical(self):
+            return q_critical(self.alpha, self.i, self.j)
+
         def print(self):
             print(f"treatments degrees of freedom: {self.dfn()}")
             print(f"treatment sum of squares (SSTr): {self.sstr()}")
@@ -319,8 +350,8 @@ def chapter10():
             _i = 5
             _j = 10
             _alpha = 0.01
-            anova = AnovaWithoutData(_sample_means, _sample_sd, _i, _j, _alpha)
-            anova.print()
+            _anova = AnovaWithoutData(_sample_means, _sample_sd, _i, _j, _alpha)
+            _anova.print()
 
         def example10_4():
             data = [
@@ -422,27 +453,69 @@ def chapter10():
                     25.5,
                 ],
             ]
-            data = AnovaWithData(data)
-            data.print()
+            _anova = AnovaWithData(data)
+            _anova.print()
 
         def problem8():
-            data = [
+            _data = [
                 [309.2, 409.5, 311.0, 326.5, 316.8, 349.8, 309.7],
                 [402.1, 347.2, 361.0, 404.5, 331.0, 348.9, 381.7],
                 [392.4, 366.2, 351.0, 357.1, 409.9, 367.3, 382.0],
                 [346.7, 452.9, 461.4, 433.1, 410.6, 384.2, 362.6],
                 [407.4, 441.8, 419.9, 410.7, 473.4, 441.2, 465.8],
             ]
-            data = AnovaWithData(data)
-            data.print()
+            _anova = AnovaWithData(_data)
+            _anova.print()
 
         example10_3()
 
     def section10_2():
-        def example10_5():
-            _sample_means = pl.Series([])
+        def example10_6():
+            _data = [
+                [88.6, 73.2, 91.4, 68.0, 75.2],
+                [63.0, 53.9, 69.2, 50.1, 71.5],
+                [44.9, 59.5, 40.2, 56.3, 38.7],
+                [31.0, 39.6, 45.3, 25.2, 22.7],
+            ]
+            _alpha = 0.05
+            _anova = AnovaWithData(_data, _alpha)
+            _anova.print()
+            print(f"w: {_anova.w()}")
+            print(f"q critical: {_anova.q_critical()}")
+            print(f"sorted sample means: {_anova.sorted_sample_means()}")
 
-    section10_1()
+
+        def problem14():
+            _sample_means = pl.Series([10.5, 14.8, 15.7, 16.0, 21.6])
+            _sample_sd = pl.Series([4.5, 6.8, 6.5, 6.7, 6.0])
+            _i = 5
+            _j = 10
+            _alpha = 0.01
+            _anova = AnovaWithoutData(_sample_means, _sample_sd, _i, _j, _alpha)
+            _anova.print()
+            print("----------------------------------------------------")
+            print(f"w: {_anova.w()}")
+            print(f"q critical: {_anova.q_critical()}")
+            print(f"sorted sample means: {_anova.sorted_sample_means()}")
+
+        def problem18():
+            _data = [
+                [13, 17, 7, 14],
+                [21, 13, 20, 17],
+                [18, 15, 20, 17],
+                [7, 11, 18, 10],
+                [6, 11, 15, 8],
+            ]
+            _anova = AnovaWithData(_data, 0.05)
+            _anova.print()
+            print("----------------------------------------------------")
+            print(f"w: {_anova.w()}")
+            print(f"q critical: {_anova.q_critical()}")
+            print(f"sorted sample means: {_anova.sorted_sample_means()}")
+
+        problem18()
+
+    section10_2()
     return
 
 
