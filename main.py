@@ -490,6 +490,7 @@ def chapter10():
             return sorted_sample_means(self.sample_means())
 
         def print(self):
+            print(f"alpha : {self.alpha}")
             print(f"numerator df: {self.dfn()}")
             print(f"denominator df: {self.dfd()}")
             print(f"total degrees of freedom: {self.total_df()}")
@@ -641,7 +642,7 @@ def chapter10():
             _anova = AnovaWithData(_data)
             _anova.print()
 
-        example10_3()
+        problem6()
 
 
     def section10_2():
@@ -664,7 +665,7 @@ def chapter10():
             _sample_sd = pl.Series([4.5, 6.8, 6.5, 6.7, 6.0])
             _i = 5
             _j = 10
-            _alpha = 0.01
+            _alpha = 0.05
             _anova = AnovaWithoutData(_sample_means, _sample_sd, _i, _j, _alpha)
             _anova.print()
             print("----------------------------------------------------")
@@ -687,7 +688,7 @@ def chapter10():
             print(f"q critical: {_anova.q_critical()}")
             print(f"sorted sample means: {_anova.sorted_sample_means()}")
 
-        problem18()
+        problem14()
 
 
     def section10_3():
@@ -699,10 +700,48 @@ def chapter10():
             ]
             _anova = AnovaWithDataV2(_data, 0.05)
             _anova.print()
-            print(_anova.confidence(1, 2, True))
-            print(_anova.confidence(1, 2, False))
+            print(f"upper confidence: {_anova.confidence(1, 2, True)}")
+            print(f"lower confidence: {_anova.confidence(1, 2, False)}")
 
-        example10_9()
+        def problem26():
+            _data = [
+                [14.1, 13.6, 14.4, 14.3], # Imperial
+                [12.8, 12.5, 13.4, 13.0, 12.3], # Parkay
+                [13.5, 13.4, 14.1, 14.3], # Blue Bonnet
+                [13.2, 12.7, 12.6, 13.9], # Chiffon
+                [16.8, 17.2, 16.4, 17.3, 18.0], # Mazola
+                [18.1, 17.2, 18.7, 18.4], # Fleischmann's
+            ]
+            _anova = AnovaWithDataV2(_data)
+            _anova.print()
+            print(f"upper confidence (4,5): {_anova.confidence(4, 5, True)}")
+            print(f"upper confidence (3,5): {_anova.confidence(3, 5, True)}")
+            print(f"upper confidence (2,3): {_anova.confidence(2, 3, True)}")
+
+        def problem27():
+            _data = [
+                [7.9, 6.2, 6.6, 8.6, 8.9, 10.1, 9.6],
+                [5.7, 7.5, 9.8, 6.1, 8.4],
+                [6.8, 7.5, 5.0, 7.4, 5.3, 6.1],
+                [6.4, 7.1, 7.9, 4.5, 5.0, 4.0],
+            ]
+            _anova = AnovaWithDataV2(_data, 0.05)
+            _anova.print()
+            print(f"lower confidence (1,4): {_anova.confidence(1, 4, False)}")
+            print(f"lower confidence (3,4): {_anova.confidence(3, 4, False)}")
+            print(f"lower confidence (1,3): {_anova.confidence(1, 3, False)}")
+
+        def problem32():
+            _data = [
+                [math.sqrt(10), math.sqrt(5), math.sqrt(12), math.sqrt(14), math.sqrt(8)],
+                [math.sqrt(14), math.sqrt(12), math.sqrt(17), math.sqrt(9), math.sqrt(8)],
+                [math.sqrt(13), math.sqrt(18), math.sqrt(10), math.sqrt(15), math.sqrt(18)],
+                [math.sqrt(17), math.sqrt(16), math.sqrt(12), math.sqrt(22), math.sqrt(14)],
+            ]
+            _anova = AnovaWithDataV2(_data, 0.01)
+            _anova.print()
+
+        problem27()
 
 
     section10_3()
