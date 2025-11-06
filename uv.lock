@@ -726,6 +726,7 @@ name = "statnotes"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "black" },
     { name = "marimo" },
     { name = "pandas" },
     { name = "polars" },
@@ -736,6 +737,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "black", specifier = ">=25.9.0" },
     { name = "marimo", specifier = ">=0.17.6" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "polars", specifier = ">=1.35.1" },

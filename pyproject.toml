@@ -5,6 +5,7 @@ description = "statistics notes"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "black>=25.9.0",
     "marimo>=0.17.6",
     "pandas>=2.3.3",
     "polars>=1.35.1",
