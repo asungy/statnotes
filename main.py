@@ -247,6 +247,14 @@ def _():
         def f_b(self):
             return self._msb / self._mse
 
+        @classmethod
+        def fixed_effects_alpha(cls, data: pl.DataFrame, i):
+            return data.transpose().to_numpy()[i-1].mean() - cls.grand_mean(data)
+
+        @classmethod
+        def fixed_effects_beta(cls, data: pl.DataFrame, j):
+            return data.to_numpy()[j-1].mean() - cls.grand_mean(data)
+
     return (TwoFactorAnova,)
 
 
@@ -265,6 +273,21 @@ def _(TwoFactorAnova):
     _()
     return
 
+@app.cell
+def _(TwoFactorAnova):
+    def _():
+        import polars as pl
+        data = pl.DataFrame([
+            [2, 5],
+            [3, 6],
+        ])
+        print(TwoFactorAnova.fixed_effects_alpha(data, 1))
+        print(TwoFactorAnova.fixed_effects_alpha(data, 2))
+        print(TwoFactorAnova.fixed_effects_beta(data, 1))
+        print(TwoFactorAnova.fixed_effects_beta(data, 2))
+
+    _()
+    return
 
 if __name__ == "__main__":
     app.run()
