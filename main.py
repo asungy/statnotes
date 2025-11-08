@@ -7,6 +7,7 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import polars as pl
+    from scipy.stats import f
     from typing import List
 
     class TwoFactorAnova:
@@ -16,19 +17,19 @@ def _():
             data: List[List[float]] = None,
             params: dict[str, any] = {},
         ):
-            self.alpha = alpha
+            self._alpha = alpha
             if data:
-                self.data = pl.DataFrame(data)
+                self._data = pl.DataFrame(data)
             #####################################
             # I and J
             #####################################
-            self.i: int = (
-                (data and self.__class__.i(self.data))
+            self._i: int = (
+                (data and self.__class__.i(self._data))
                 or params.get("i")
                 or print("no value assigned for i")
             )
-            self.j: int = (
-                (data and self.__class__.j(self.data))
+            self._j: int = (
+                (data and self.__class__.j(self._data))
                 or params.get("j")
                 or print("no value assigned for j")
             )
@@ -36,53 +37,37 @@ def _():
             # Degrees of freedom
             #####################################
             # Factor A df
-            self.adf: int = (
-                (data and self.__class__.adf(self.data))
-                or params.get("adf")
-                or print("no value assigned for adf")
-            )
+            self._adf: int = self.adf()
             # Factor B df
-            self.bdf: int = (
-                (data and self.__class__.bdf(self.data))
-                or params.get("bdf")
-                or print("no value assigned for bdf")
-            )
+            self._bdf: int = self.bdf()
             # Error df
-            self.edf: int = (
-                (data and self.__class__.edf(self.data))
-                or params.get("edf")
-                or print("no value assigned for edf")
-            )
+            self._edf: int = self.edf()
             # Total df
-            self.tdf: int = (
-                (data and self.__class__.tdf(self.data))
-                or params.get("tdf")
-                or print("no value assigned for tdf")
-            )
+            self._tdf: int = self.tdf()
             #####################################
             # Sum of Squares
             #####################################
             # Factor A sum of squares
-            self.ssa: float = (
-                (data and self.__class__.ssa(self.data))
+            self._ssa: float = (
+                (data and self.__class__.data_to_ssa(self._data))
                 or params.get("ssa")
                 or print("no value assigned for ssa")
             )
             # Factor B sum of squares
-            self.ssb: float = (
-                (data and self.__class__.ssb(self.data))
+            self._ssb: float = (
+                (data and self.__class__.data_to_ssb(self._data))
                 or params.get("ssb")
                 or print("no value assigned for ssb")
             )
             # Error sum of squares
-            self.sse: float = (
-                (data and self.__class__.sse(self.data))
+            self._sse: float = (
+                (data and self.__class__.data_to_sse(self._data))
                 or params.get("sse")
                 or print("no value assigned for sse")
             )
             # Total sum of squares
-            self.sst: float = (
-                (data and self.__class__.sst(self.data))
+            self._sst: float = (
+                (data and self.__class__.data_to_sst(self._data))
                 or params.get("sst")
                 or print("no value assigned for sst")
             )
@@ -90,41 +75,34 @@ def _():
             # Mean Squares
             #####################################
             # Factor A mean square
-            self.msa: float = (
-                (data and self.__class__.msa(self.data))
-                or params.get("msa")
-                or print("no value assigned for msa")
-            )
+            self._msa: float = self.msa()
             # Factor B mean square
-            self.msb: float = (
-                (data and self.__class__.msb(self.data))
-                or params.get("msb")
-                or print("no value assigned for msb")
-            )
+            self._msb: float = self.msb()
             # Error mean square
-            self.mse: float = (
-                (data and self.__class__.mse(self.data))
-                or params.get("mse")
-                or print("no value assigned for mse")
-            )
+            self._mse: float = self.mse()
             #####################################
             # F test statistic
             #####################################
             # f test statistic of factor A
-            self.f_a: float = (
-                (data and self.__class__.f_a(self.data))
-                or params.get("f_a")
-                or print("no value assigned for f_a")
+            self._f_a: float = self.f_a()
+            # f_a critical value
+            self._f_a_critical_value: float = (
+                lambda alpha: f.ppf(1 - alpha, self.adf(), self.edf())
+            )(alpha)
+            # f_a pvalue
+            self._f_a_pvalue: float = (lambda f_a, adf, edf: 1 - f.cdf(f_a, adf, edf))(
+                self.f_a(), self.adf(), self.edf()
             )
             # f test statistic of factor B
-            self.f_b: float = (
-                (data and self.__class__.f_b(self.data))
-                or params.get("f_b")
-                or print("no value assigned for f_b")
+            self._f_b: float = self.f_b()
+            # f_b critical value
+            self._f_b_critical_value: float = (
+                lambda alpha: f.ppf(1 - alpha, self.bdf(), self.edf())
+            )(alpha)
+            # f_b pvalue
+            self._f_b_pvalue: float = (lambda f_b, bdf, edf: 1 - f.cdf(f_b, bdf, edf))(
+                self.f_b(), self.bdf(), self.edf()
             )
-
-            if data is None:
-                return
 
         @classmethod
         def from_data(cls, data: List[List[float]], alpha: float):
@@ -142,78 +120,90 @@ def _():
 
         def print(self):
             print("-----------------------------------")
-            print(f"i: {self.i}")
-            print(f"j: {self.j}")
+            print(f"i: {self._i}")
+            print(f"j: {self._j}")
             print("-----------------------------------")
-            print(f"Factor A df: {self.adf}")
-            print(f"Factor B df: {self.bdf}")
-            print(f"Error df: {self.edf}")
-            print(f"Total df: {self.tdf}")
+            print(f"Factor A df: {self._adf}")
+            print(f"Factor B df: {self._bdf}")
+            print(f"Error df: {self._edf}")
+            print(f"Total df: {self._tdf}")
             print("-----------------------------------")
-            print(f"Factor A sum of squares: {self.ssa}")
-            print(f"Factor B sum of squares: {self.ssb}")
-            print(f"Error sum of squares: {self.sse}")
-            print(f"Total sum of squares: {self.sst}")
+            print(f"Factor A sum of squares: {self._ssa}")
+            print(f"Factor B sum of squares: {self._ssb}")
+            print(f"Error sum of squares: {self._sse}")
+            print(f"Total sum of squares: {self._sst}")
             print("-----------------------------------")
-            print(f"Factor A mean square: {self.msa}")
-            print(f"Factor B mean square: {self.msb}")
-            print(f"Error mean square: {self.mse}")
+            print(f"Factor A mean square: {self._msa}")
+            print(f"Factor B mean square: {self._msb}")
+            print(f"Error mean square: {self._mse}")
             print("-----------------------------------")
-            print(f"alpha: {self.alpha}")
-            print(f"f test statistic of factor A: {self.f_a}")
-            print(f"f test statistic of factor B: {self.f_b}")
+            print(f"alpha: {self._alpha}")
+            print(f"f test statistic of factor A: {self._f_a}")
+            print(f"f_a critical value: {self._f_a_critical_value}")
+            print(f"f_a p-value: {self._f_a_pvalue}")
+            print(f"f test statistic of factor B: {self._f_b}")
+            print(f"f_b critical value: {self._f_b_critical_value}")
+            print(f"f_b p-value: {self._f_b_pvalue}")
             print("-----------------------------------")
 
-        @staticmethod
-        def i(data: pl.DataFrame):
+        @classmethod
+        def i(cls, data: pl.DataFrame):
             return data.shape[1]
 
-        @staticmethod
-        def j(data: pl.DataFrame):
+        @classmethod
+        def j(cls, data: pl.DataFrame):
             return data.shape[0]
 
-        @staticmethod
-        def adf(data: pl.DataFrame):
-            i = TwoFactorAnova.i(data)
+        @classmethod
+        def data_to_adf(cls, data: pl.DataFrame):
+            i = cls.i(data)
             return i - 1
 
-        @staticmethod
-        def bdf(data: pl.DataFrame):
-            j = TwoFactorAnova.j(data)
+        def adf(self):
+            return self._i - 1
+
+        @classmethod
+        def data_to_bdf(cls, data: pl.DataFrame):
+            j = cls.j(data)
             return j - 1
 
-        @staticmethod
-        def edf(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            return _cls.adf(data) * _cls.bdf(data)
+        def bdf(self):
+            return self._j - 1
 
-        @staticmethod
-        def tdf(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            return _cls.i(data) * _cls.j(data) - 1
+        @classmethod
+        def data_to_edf(cls, data: pl.DataFrame):
+            return cls.data_to_adf(data) * cls.data_to_bdf(data)
 
-        @staticmethod
-        def grand_mean(data: pl.DataFrame):
+        def edf(self):
+            return self._adf * self._bdf
+
+        @classmethod
+        def data_to_tdf(cls, data: pl.DataFrame):
+            return cls.i(data) * cls.j(data) - 1
+
+        def tdf(self):
+            return self._i * self._j - 1
+
+        @classmethod
+        def grand_mean(cls, data: pl.DataFrame):
             return data.to_numpy().mean()
 
-        @staticmethod
-        def ssa(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            grand_mean = _cls.grand_mean(data)
+        @classmethod
+        def data_to_ssa(cls, data: pl.DataFrame):
+            grand_mean = cls.grand_mean(data)
             return (
-                _cls.j(data)
+                cls.j(data)
                 * data.mean()
                 .select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2)))
                 .to_numpy()
                 .sum()
             )
 
-        @staticmethod
-        def ssb(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            grand_mean = _cls.grand_mean(data)
+        @classmethod
+        def data_to_ssb(cls, data: pl.DataFrame):
+            grand_mean = cls.grand_mean(data)
             return (
-                _cls.i(data)
+                cls.i(data)
                 * data.transpose()
                 .mean()
                 .select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2)))
@@ -221,8 +211,8 @@ def _():
                 .sum()
             )
 
-        @staticmethod
-        def sse(data: pl.DataFrame):
+        @classmethod
+        def data_to_sse(cls, data: pl.DataFrame):
             result = 0
             x_i = data.mean().to_numpy()[0]
             x_j = data.transpose().mean().to_numpy()[0]
@@ -233,34 +223,29 @@ def _():
                     result += pow(nd[i][j] - x_i[i] - x_j[j] + grand_mean, 2)
             return result
 
-        @staticmethod
-        def sst(data: pl.DataFrame):
+        @classmethod
+        def data_to_sst(cls, data: pl.DataFrame):
             grand_mean = TwoFactorAnova.grand_mean(data)
-            return data.select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2))).to_numpy().sum()
+            return (
+                data.select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2)))
+                .to_numpy()
+                .sum()
+            )
 
-        @staticmethod
-        def msa(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            return _cls.ssa(data) / _cls.adf(data)
+        def msa(self):
+            return self._ssa / self._adf
 
-        @staticmethod
-        def msb(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            return _cls.ssb(data) / _cls.bdf(data)
+        def msb(self):
+            return self._ssb / self._bdf
 
-        @staticmethod
-        def mse(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            return _cls.sse(data) / _cls.edf(data)
+        def mse(self):
+            return self._sse / self._edf
 
-        @staticmethod
-        def f_a(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            return _cls.msa(data) / _cls.mse(data)
-        
-        def f_b(data: pl.DataFrame):
-            _cls = TwoFactorAnova
-            return _cls.msb(data) / _cls.mse(data)
+        def f_a(self):
+            return self._msa / self._mse
+
+        def f_b(self):
+            return self._msb / self._mse
 
     return (TwoFactorAnova,)
 
