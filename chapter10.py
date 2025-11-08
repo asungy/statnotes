@@ -7,6 +7,7 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import marimo as mo
+
     return
 
 
@@ -19,21 +20,17 @@ def chapter10():
     from typing import List
     from scipy.stats import studentized_range
 
-
     def total_df(i, j):
         """Get total degrees of freedom."""
         return i * j - 1
-
 
     def dfn(i):
         """Calculate degrees of freedom for numerator (treatments)."""
         return i - 1
 
-
     def dfd(i, j):
         """Calculate degrees of freedom for denominator (error)."""
         return i * (j - 1)
-
 
     def f_critical(alpha, i, j):
         """Calculate f-critical value."""
@@ -41,11 +38,9 @@ def chapter10():
         ddf = dfd(i, j)
         return f.ppf(1 - alpha, ndf, ddf)
 
-
     def grand_mean(sample_means: pl.Series):
         """Calculate the grand mean."""
         return sample_means.mean()
-
 
     def mstr(sample_means: pl.Series, i: int, j: int):
         """Calculate mean square for treatments."""
@@ -55,40 +50,31 @@ def chapter10():
             _sum += pow(_mean - _grand_mean, 2)
         return (j / (i - 1)) * _sum
 
-
     def mse(sample_sd: pl.Series, i: int):
         """Calculate mean square error."""
         sum = sample_sd.map_elements(lambda elem: pow(elem, 2)).sum()
         return sum / i
 
-
-    def f_test_statistic(
-        sample_means: pl.Series, sample_sd: pl.Series, i: int, j: int
-    ):
+    def f_test_statistic(sample_means: pl.Series, sample_sd: pl.Series, i: int, j: int):
         """Get f test statistic."""
         _mstr = mstr(sample_means, i, j)
         _mse = mse(sample_sd, i)
         return _mstr / _mse
 
-
     def f_test_pvalue(_f_test_statistic, i, j):
         """Calculate p-value for f-test."""
         return 1 - f.cdf(_f_test_statistic, dfn(i), dfd(i, j))
 
-
     def q_critical(_alpha, _i, _j):
         return studentized_range.ppf(1 - _alpha, _i, dfd(_i, _j))
-
 
     def w(_sample_sd: pl.Series, _i: int, _j: int, _alpha: float):
         _q_critical = q_critical(_alpha, _i, _j)
         _sqrt_mse_j = math.sqrt(mse(_sample_sd, _i) / _j)
         return _q_critical * _sqrt_mse_j
 
-
     def sorted_sample_means(_sample_means: pl.Series):
         return _sample_means.sort()
-
 
     class AnovaWithData:
         data_key = "data"
@@ -192,9 +178,7 @@ def chapter10():
         def sstr(self):
             """Calculate the treatment sum squares."""
             _rows = self.df[AnovaWithData.data_key].to_numpy()
-            _first_term = (
-                np.array([_row.sum() ** 2 for _row in _rows]).sum() / self.j()
-            )
+            _first_term = np.array([_row.sum() ** 2 for _row in _rows]).sum() / self.j()
             _second_term = pow(self.grand_sum(), 2) / (self.i() * self.j())
             return _first_term - _second_term
 
@@ -249,7 +233,6 @@ def chapter10():
             print(f"f test statistic: {self.f_test_statistic()}")
             print(f"f test p value: {self.f_test_pvalue()}")
 
-
     class AnovaWithoutData:
         def __init__(
             self,
@@ -294,9 +277,7 @@ def chapter10():
 
         def f_test_statistic(self):
             """Get f test statistic."""
-            return f_test_statistic(
-                self.sample_means, self.sample_sd, self.i, self.j
-            )
+            return f_test_statistic(self.sample_means, self.sample_sd, self.i, self.j)
 
         def f_test_pvalue(self):
             """Calculate p-value for f-test."""
@@ -339,7 +320,6 @@ def chapter10():
             print(f"f critical value: {self.f_critical()}")
             print(f"f test statistic: {self.f_test_statistic()}")
             print(f"f test p value: {self.f_test_pvalue()}")
-
 
     class AnovaWithDataV2:
         data_key = "data"
@@ -404,9 +384,7 @@ def chapter10():
 
         def n(self):
             """Calculate the number of observations."""
-            return np.concatenate(
-                self.df[AnovaWithDataV2.data_key].to_numpy()
-            ).size
+            return np.concatenate(self.df[AnovaWithDataV2.data_key].to_numpy()).size
 
         def i(self):
             return self.df.shape[0]
@@ -429,9 +407,7 @@ def chapter10():
             return grand_mean(self.sample_means())
 
         def grand_sum(self):
-            return np.concatenate(
-                self.df[AnovaWithDataV2.data_key].to_numpy()
-            ).sum()
+            return np.concatenate(self.df[AnovaWithDataV2.data_key].to_numpy()).sum()
 
         def sst(self):
             _first_term = np.square(
@@ -470,21 +446,18 @@ def chapter10():
 
         def w(self, i, j):
             _j_series = self.df[AnovaWithDataV2.s_count_key].to_numpy()
-            _q_critical = studentized_range.ppf(
-                1 - self.alpha, self.i(), self.dfd()
-            )
+            _q_critical = studentized_range.ppf(1 - self.alpha, self.i(), self.dfd())
             _sqrt_mse_j = math.sqrt(
-                (self.mse() / 2)
-                * ((1 / _j_series[i - 1]) + (1 / _j_series[j - 1]))
+                (self.mse() / 2) * ((1 / _j_series[i - 1]) + (1 / _j_series[j - 1]))
             )
             return _q_critical * _sqrt_mse_j
 
         def confidence(self, i, j, upper: bool = True):
             _sample_means = self.sample_means().to_numpy()
             if upper:
-                return _sample_means[i-1] - _sample_means[j-1] + self.w(i,j)
+                return _sample_means[i - 1] - _sample_means[j - 1] + self.w(i, j)
             else:
-                return _sample_means[i-1] - _sample_means[j-1] - self.w(i,j)
+                return _sample_means[i - 1] - _sample_means[j - 1] - self.w(i, j)
 
         def sorted_sample_means(self):
             return sorted_sample_means(self.sample_means())
@@ -506,7 +479,6 @@ def chapter10():
             print(f"f critical value: {self.f_critical()}")
             print(f"f test p value: {self.f_test_pvalue()}")
             print("---------------------------------------------------")
-
 
     def section10_1():
         def example10_2():
@@ -644,7 +616,6 @@ def chapter10():
 
         problem6()
 
-
     def section10_2():
         def example10_6():
             _data = [
@@ -690,7 +661,6 @@ def chapter10():
 
         problem14()
 
-
     def section10_3():
         def example10_9():
             _data = [
@@ -705,12 +675,12 @@ def chapter10():
 
         def problem26():
             _data = [
-                [14.1, 13.6, 14.4, 14.3], # Imperial
-                [12.8, 12.5, 13.4, 13.0, 12.3], # Parkay
-                [13.5, 13.4, 14.1, 14.3], # Blue Bonnet
-                [13.2, 12.7, 12.6, 13.9], # Chiffon
-                [16.8, 17.2, 16.4, 17.3, 18.0], # Mazola
-                [18.1, 17.2, 18.7, 18.4], # Fleischmann's
+                [14.1, 13.6, 14.4, 14.3],  # Imperial
+                [12.8, 12.5, 13.4, 13.0, 12.3],  # Parkay
+                [13.5, 13.4, 14.1, 14.3],  # Blue Bonnet
+                [13.2, 12.7, 12.6, 13.9],  # Chiffon
+                [16.8, 17.2, 16.4, 17.3, 18.0],  # Mazola
+                [18.1, 17.2, 18.7, 18.4],  # Fleischmann's
             ]
             _anova = AnovaWithDataV2(_data)
             _anova.print()
@@ -733,16 +703,39 @@ def chapter10():
 
         def problem32():
             _data = [
-                [math.sqrt(10), math.sqrt(5), math.sqrt(12), math.sqrt(14), math.sqrt(8)],
-                [math.sqrt(14), math.sqrt(12), math.sqrt(17), math.sqrt(9), math.sqrt(8)],
-                [math.sqrt(13), math.sqrt(18), math.sqrt(10), math.sqrt(15), math.sqrt(18)],
-                [math.sqrt(17), math.sqrt(16), math.sqrt(12), math.sqrt(22), math.sqrt(14)],
+                [
+                    math.sqrt(10),
+                    math.sqrt(5),
+                    math.sqrt(12),
+                    math.sqrt(14),
+                    math.sqrt(8),
+                ],
+                [
+                    math.sqrt(14),
+                    math.sqrt(12),
+                    math.sqrt(17),
+                    math.sqrt(9),
+                    math.sqrt(8),
+                ],
+                [
+                    math.sqrt(13),
+                    math.sqrt(18),
+                    math.sqrt(10),
+                    math.sqrt(15),
+                    math.sqrt(18),
+                ],
+                [
+                    math.sqrt(17),
+                    math.sqrt(16),
+                    math.sqrt(12),
+                    math.sqrt(22),
+                    math.sqrt(14),
+                ],
             ]
             _anova = AnovaWithDataV2(_data, 0.01)
             _anova.print()
 
         problem27()
-
 
     section10_3()
     return
