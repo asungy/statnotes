@@ -69,7 +69,7 @@ def _():
             self._sst: float = (
                 (data and self.__class__.data_to_sst(self._data))
                 or params.get("sst")
-                or print("no value assigned for sst")
+                or (self._ssa + self._ssb + self._sse)
             )
             #####################################
             # Mean Squares
@@ -116,7 +116,13 @@ def _():
 
         @classmethod
         def from_params(cls, params: dict[str, any], alpha: float):
-            pass
+            assert params is not None
+            assert alpha is not None
+            return cls(
+                alpha,
+                None,
+                params,
+            )
 
         def print(self):
             print("-----------------------------------")
@@ -141,6 +147,7 @@ def _():
             print(f"f test statistic of factor A: {self._f_a}")
             print(f"f_a critical value: {self._f_a_critical_value}")
             print(f"f_a p-value: {self._f_a_pvalue}")
+            print()
             print(f"f test statistic of factor B: {self._f_b}")
             print(f"f_b critical value: {self._f_b_critical_value}")
             print(f"f_b p-value: {self._f_b_pvalue}")
@@ -249,18 +256,18 @@ def _():
 
         @classmethod
         def fixed_effects_alpha(cls, data: pl.DataFrame, i):
-            return data.transpose().to_numpy()[i-1].mean() - cls.grand_mean(data)
+            return data.transpose().to_numpy()[i - 1].mean() - cls.grand_mean(data)
 
         @classmethod
         def fixed_effects_beta(cls, data: pl.DataFrame, j):
-            return data.to_numpy()[j-1].mean() - cls.grand_mean(data)
+            return data.to_numpy()[j - 1].mean() - cls.grand_mean(data)
 
     return (TwoFactorAnova,)
 
 
 @app.cell
 def _(TwoFactorAnova):
-    def _():
+    def example11_1_from_data():
 
         data = [
             [0.97, 0.48, 0.48, 0.46],
@@ -270,24 +277,93 @@ def _(TwoFactorAnova):
         anova = TwoFactorAnova.from_data(data, 0.05)
         anova.print()
 
-    _()
+    example11_1_from_data()
     return
+
 
 @app.cell
 def _(TwoFactorAnova):
-    def _():
+    def example11_1_from_params():
+        params = {
+            "i": 3,
+            "j": 4,
+            "ssa": 0.12821666666666667,
+            "ssb": 0.47969166666666674,
+            "sse": 0.08678333333333331,
+        }
+        anova = TwoFactorAnova.from_params(params, 0.05)
+        anova.print()
+
+    example11_1_from_params()
+    return
+
+
+@app.cell
+def _(TwoFactorAnova):
+    def example11_2():
         import polars as pl
-        data = pl.DataFrame([
-            [2, 5],
-            [3, 6],
-        ])
+
+        data = pl.DataFrame(
+            [
+                [2, 5],
+                [3, 6],
+            ]
+        )
         print(TwoFactorAnova.fixed_effects_alpha(data, 1))
         print(TwoFactorAnova.fixed_effects_alpha(data, 2))
         print(TwoFactorAnova.fixed_effects_beta(data, 1))
         print(TwoFactorAnova.fixed_effects_beta(data, 2))
 
-    _()
+    example11_2()
     return
+
+
+@app.cell
+def _(TwoFactorAnova):
+    def question2():
+        import polars as pl
+        data = [
+            [64, 49, 50],
+            [53, 51, 48],
+            [47, 45, 50],
+            [51, 43, 52],
+        ]
+        anova = TwoFactorAnova.from_data(data, 0.05)
+        anova.print()
+        print(f"ssa - ssb: {anova._ssa - anova._ssb}")
+
+        df = pl.DataFrame(data)
+        beta_hat_1 = TwoFactorAnova.fixed_effects_beta(df, 1)
+        beta_hat_3 = TwoFactorAnova.fixed_effects_beta(df, 3)
+        print(f"beta_hat_1 - beta_hat_3: {beta_hat_1 - beta_hat_3}")
+        alpha_hat_1 = TwoFactorAnova.fixed_effects_alpha(df, 1)
+        alpha_hat_4 = TwoFactorAnova.fixed_effects_alpha(df, 4)
+        print(f"alpha_hat_1 - alpha_hat_4: {alpha_hat_1 - alpha_hat_4}")
+        grand_mean = TwoFactorAnova.grand_mean(df)
+        print(f"mu_hat (grand mean): {grand_mean}")
+
+    question2()
+    return
+
+@app.cell
+def _(TwoFactorAnova):
+    def question6():
+        # Also serves for question 12.
+        params = {
+            "i": 3,
+            "j": 5,
+            "ssa": 11.7,
+            "ssb": 113.5,
+            "sse": 25.6,
+        }
+        # anova = TwoFactorAnova.from_params(params, 0.05)
+        anova = TwoFactorAnova.from_params(params, 0.01)
+        anova.print()
+        print(f"msa - msb: {anova._msa - anova._msb}")
+
+    question6()
+    return
+
 
 if __name__ == "__main__":
     app.run()
