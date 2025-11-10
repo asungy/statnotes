@@ -19,9 +19,15 @@ def _():
         ):
             self._alpha = alpha
             if data:
-                self._data = pl.DataFrame(data)
+                self._data = pl.DataFrame(data).select(
+                    pl.all().map_elements(
+                        lambda x: (
+                            [x] if isinstance(x, float) or isinstance(x, int) else x
+                        )
+                    )
+                )
             #####################################
-            # I and J
+            # I and J and K
             #####################################
             self._i: int = (
                 (data and self.__class__.i(self._data))
@@ -32,6 +38,11 @@ def _():
                 (data and self.__class__.j(self._data))
                 or params.get("j")
                 or print("no value assigned for j")
+            )
+            self._k: int = (
+                (data and self.__class__.k(self._data))
+                or params.get("k")
+                or print("no value assigned for k")
             )
             #####################################
             # Degrees of freedom
@@ -44,6 +55,8 @@ def _():
             self._edf: int = self.edf()
             # Total df
             self._tdf: int = self.tdf()
+            # Interaction df
+            self._abdf: int = self.abdf()
             #####################################
             # Sum of Squares
             #####################################
@@ -71,6 +84,12 @@ def _():
                 or params.get("sst")
                 or (self._ssa + self._ssb + self._sse)
             )
+            # Interaction sum of squares.
+            self._ssab: float = (
+                (data and self.__class__.data_to_ssab(self._data))
+                or params.get("ssab")
+                or print("no value assigned for ssab")
+            )
             #####################################
             # Mean Squares
             #####################################
@@ -80,6 +99,8 @@ def _():
             self._msb: float = self.msb()
             # Error mean square
             self._mse: float = self.mse()
+            # Interaction mean square
+            self._msab: float = self.msab()
             #####################################
             # F test statistic
             #####################################
@@ -128,19 +149,23 @@ def _():
             print("-----------------------------------")
             print(f"i: {self._i}")
             print(f"j: {self._j}")
+            print(f"k: {self._k}")
             print("-----------------------------------")
             print(f"Factor A df: {self._adf}")
             print(f"Factor B df: {self._bdf}")
+            print(f"Interaction df: {self._abdf}")
             print(f"Error df: {self._edf}")
             print(f"Total df: {self._tdf}")
             print("-----------------------------------")
             print(f"Factor A sum of squares: {self._ssa}")
             print(f"Factor B sum of squares: {self._ssb}")
+            print(f"Interaction sum of squares: {self._ssab}")
             print(f"Error sum of squares: {self._sse}")
             print(f"Total sum of squares: {self._sst}")
             print("-----------------------------------")
             print(f"Factor A mean square: {self._msa}")
             print(f"Factor B mean square: {self._msb}")
+            print(f"Interaction mean square: {self._msab}")
             print(f"Error mean square: {self._mse}")
             print("-----------------------------------")
             print(f"alpha: {self._alpha}")
@@ -162,82 +187,135 @@ def _():
             return data.shape[0]
 
         @classmethod
-        def data_to_adf(cls, data: pl.DataFrame):
-            i = cls.i(data)
-            return i - 1
+        def k(cls, data: pl.DataFrame):
+            return (
+                data.select(pl.all().map_elements(lambda x: x.len())).to_numpy().min()
+            )
 
         def adf(self):
             return self._i - 1
 
-        @classmethod
-        def data_to_bdf(cls, data: pl.DataFrame):
-            j = cls.j(data)
-            return j - 1
-
         def bdf(self):
             return self._j - 1
 
-        @classmethod
-        def data_to_edf(cls, data: pl.DataFrame):
-            return cls.data_to_adf(data) * cls.data_to_bdf(data)
-
         def edf(self):
-            return self._adf * self._bdf
+            if self._k == 1:
+                return self._adf * self._bdf
+            return self._i * self._j * (self._k - 1)
+
+        def abdf(self):
+            return (self._i - 1) * (self._j - 1)
 
         @classmethod
         def data_to_tdf(cls, data: pl.DataFrame):
             return cls.i(data) * cls.j(data) - 1
 
         def tdf(self):
-            return self._i * self._j - 1
+            return self._i * self._j * self._k - 1
 
         @classmethod
         def grand_mean(cls, data: pl.DataFrame):
-            return data.to_numpy().mean()
+            return data.to_numpy().mean().mean()
 
         @classmethod
         def data_to_ssa(cls, data: pl.DataFrame):
             grand_mean = cls.grand_mean(data)
+            j = cls.j(data)
+            k = cls.k(data)
             return (
-                cls.j(data)
-                * data.mean()
-                .select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2)))
-                .to_numpy()
-                .sum()
+                (
+                    data.select(pl.all().map_elements(lambda x: x.mean()))
+                    .mean()
+                    .select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2)))
+                    .to_numpy()
+                    .sum()
+                )
+                * j
+                * k
             )
 
         @classmethod
         def data_to_ssb(cls, data: pl.DataFrame):
             grand_mean = cls.grand_mean(data)
+            i = cls.i(data)
+            k = cls.k(data)
             return (
-                cls.i(data)
-                * data.transpose()
-                .mean()
-                .select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2)))
-                .to_numpy()
-                .sum()
+                (
+                    data.transpose()
+                    .select(pl.all().map_elements(lambda x: x.mean()))
+                    .mean()
+                    .select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2)))
+                    .to_numpy()
+                    .sum()
+                )
+                * i
+                * k
             )
 
         @classmethod
         def data_to_sse(cls, data: pl.DataFrame):
-            result = 0
-            x_i = data.mean().to_numpy()[0]
-            x_j = data.transpose().mean().to_numpy()[0]
-            nd = data.transpose().to_numpy()
-            grand_mean = TwoFactorAnova.grand_mean(data)
-            for i in range(nd.shape[0]):
-                for j in range(nd.shape[1]):
-                    result += pow(nd[i][j] - x_i[i] - x_j[j] + grand_mean, 2)
-            return result
+            k = cls.k(data)
+            if k == 1:
+                result = 0
+                flat_data = data.select(pl.all().map_elements(lambda x: x[0]))
+                x_i = flat_data.mean().to_numpy()[0]
+                x_j = flat_data.transpose().mean().to_numpy()[0]
+                nd = flat_data.transpose().to_numpy()
+                grand_mean = TwoFactorAnova.grand_mean(data)
+                for i in range(nd.shape[0]):
+                    for j in range(nd.shape[1]):
+                        result += pow(nd[i][j] - x_i[i] - x_j[j] + grand_mean, 2)
+                return result
+
+            return (
+                (data - data.select(pl.all().map_elements(lambda x: [x.mean()] * k)))
+                .select(
+                    pl.all().map_elements(
+                        lambda x: x.map_elements(lambda s: pow(s, 2)).sum()
+                    )
+                )
+                .to_numpy()
+                .sum()
+            )
 
         @classmethod
         def data_to_sst(cls, data: pl.DataFrame):
             grand_mean = TwoFactorAnova.grand_mean(data)
             return (
-                data.select(pl.all().map_elements(lambda x: pow(x - grand_mean, 2)))
+                data.select(
+                    pl.all().map_elements(
+                        lambda x: x.map_elements(lambda s: pow(s - grand_mean, 2)).sum()
+                    )
+                )
                 .to_numpy()
                 .sum()
             )
+
+        @classmethod
+        def data_to_ssab(cls, data: pl.DataFrame):
+            i = cls.i(data)
+            j = cls.j(data)
+            k = cls.k(data)
+            grand_mean = cls.grand_mean(data)
+
+            x_ij_mean = data.select(pl.all().map_elements(lambda x: x.mean()))
+
+            x_i_mean = pl.concat(
+                [data.select(pl.all().map_elements(lambda x: x.mean())).mean()] * i
+            )
+
+            x_j_mean = pl.concat(
+                [
+                    data.transpose()
+                    .select(pl.all().map_elements(lambda x: x.mean()))
+                    .mean()
+                ]
+                * j
+            ).transpose()
+
+            return (x_ij_mean - x_i_mean - x_j_mean + grand_mean).select(
+                pl.all().map_elements(lambda x: pow(x, 2))
+            ).to_numpy().sum() * k
 
         def msa(self):
             return self._ssa / self._adf
@@ -247,6 +325,9 @@ def _():
 
         def mse(self):
             return self._sse / self._edf
+
+        def msab(self):
+            return self._ssab / self._abdf
 
         def f_a(self):
             return self._msa / self._mse
@@ -268,7 +349,6 @@ def _():
 @app.cell
 def _(TwoFactorAnova):
     def example11_1_from_data():
-
         data = [
             [0.97, 0.48, 0.48, 0.46],
             [0.77, 0.14, 0.22, 0.25],
@@ -322,6 +402,7 @@ def _(TwoFactorAnova):
 def _(TwoFactorAnova):
     def question2():
         import polars as pl
+
         data = [
             [64, 49, 50],
             [53, 51, 48],
@@ -345,6 +426,7 @@ def _(TwoFactorAnova):
     question2()
     return
 
+
 @app.cell
 def _(TwoFactorAnova):
     def question6():
@@ -362,6 +444,21 @@ def _(TwoFactorAnova):
         print(f"msa - msb: {anova._msa - anova._msb}")
 
     question6()
+    return
+
+
+@app.cell
+def _(TwoFactorAnova):
+    def example11_7():
+        data = [
+            [[0.835, 0.845], [0.822, 0.826], [0.785, 0.795]],
+            [[0.855, 0.865], [0.832, 0.836], [0.790, 0.800]],
+            [[0.815, 0.825], [0.800, 0.820], [0.770, 0.790]],
+        ]
+        anova = TwoFactorAnova.from_data(data, 0.05)
+        anova.print()
+
+    example11_7()
     return
 
 
