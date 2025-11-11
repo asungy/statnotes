@@ -5,7 +5,7 @@ app = marimo.App(width="medium")
 
 
 @app.cell
-def _():
+def two_factor_anova():
     import polars as pl
     from scipy.stats import f
     from typing import List
@@ -124,6 +124,16 @@ def _():
             self._f_b_pvalue: float = (lambda f_b, bdf, edf: 1 - f.cdf(f_b, bdf, edf))(
                 self.f_b(), self.bdf(), self.edf()
             )
+            # f test statistic of interaction
+            self._f_ab: float = self.f_ab()
+            # f_ab critical value
+            self._f_ab_critical_value: float = (lambda alpha: f.ppf(
+                1 - alpha, self.abdf(), self.edf()
+            ))(alpha)
+            # f_ab pvalue
+            self._f_ab_pvalue: float = (
+                lambda f_ab, abdf, edf: 1 - f.cdf(f_ab, abdf, edf)
+            )(self.f_ab(), self.abdf(), self.edf())
 
         @classmethod
         def from_data(cls, data: List[List[float]], alpha: float):
@@ -176,6 +186,10 @@ def _():
             print(f"f test statistic of factor B: {self._f_b}")
             print(f"f_b critical value: {self._f_b_critical_value}")
             print(f"f_b p-value: {self._f_b_pvalue}")
+            print()
+            print(f"f test statistic of interaction: {self._f_ab}")
+            print(f"f_ab critical value: {self._f_ab_critical_value}")
+            print(f"f_ab p-value: {self._f_ab_pvalue}")
             print("-----------------------------------")
 
         @classmethod
@@ -335,6 +349,9 @@ def _():
         def f_b(self):
             return self._msb / self._mse
 
+        def f_ab(self):
+            return self._msab / self._mse
+
         @classmethod
         def fixed_effects_alpha(cls, data: pl.DataFrame, i):
             return data.transpose().to_numpy()[i - 1].mean() - cls.grand_mean(data)
@@ -347,8 +364,8 @@ def _():
 
 
 @app.cell
-def _(TwoFactorAnova):
-    def example11_1_from_data():
+def example11_1_from_data(TwoFactorAnova):
+    def _():
         data = [
             [0.97, 0.48, 0.48, 0.46],
             [0.77, 0.14, 0.22, 0.25],
@@ -357,13 +374,14 @@ def _(TwoFactorAnova):
         anova = TwoFactorAnova.from_data(data, 0.05)
         anova.print()
 
-    example11_1_from_data()
+    _()
     return
 
 
-@app.cell
-def _(TwoFactorAnova):
-    def example11_1_from_params():
+# Does not currently work with two factor anova where K_ij > 1
+@app.cell(disabled=True)
+def example11_1_from_params(TwoFactorAnova):
+    def _():
         params = {
             "i": 3,
             "j": 4,
@@ -374,13 +392,13 @@ def _(TwoFactorAnova):
         anova = TwoFactorAnova.from_params(params, 0.05)
         anova.print()
 
-    example11_1_from_params()
+    _()
     return
 
 
 @app.cell
 def _(TwoFactorAnova):
-    def example11_2():
+    def _():
         import polars as pl
 
         data = pl.DataFrame(
@@ -394,13 +412,13 @@ def _(TwoFactorAnova):
         print(TwoFactorAnova.fixed_effects_beta(data, 1))
         print(TwoFactorAnova.fixed_effects_beta(data, 2))
 
-    example11_2()
+    _()
     return
 
 
 @app.cell
-def _(TwoFactorAnova):
-    def question2():
+def question2(TwoFactorAnova):
+    def _():
         import polars as pl
 
         data = [
@@ -423,13 +441,14 @@ def _(TwoFactorAnova):
         grand_mean = TwoFactorAnova.grand_mean(df)
         print(f"mu_hat (grand mean): {grand_mean}")
 
-    question2()
+    _()
     return
 
 
-@app.cell
-def _(TwoFactorAnova):
-    def question6():
+# Does not currently work with two factor anova where K_ij > 1
+@app.cell(disabled=True)
+def question6(TwoFactorAnova):
+    def _():
         # Also serves for question 12.
         params = {
             "i": 3,
@@ -443,13 +462,13 @@ def _(TwoFactorAnova):
         anova.print()
         print(f"msa - msb: {anova._msa - anova._msb}")
 
-    question6()
+    _()
     return
 
 
 @app.cell
-def _(TwoFactorAnova):
-    def example11_7():
+def example11_7(TwoFactorAnova):
+    def _():
         data = [
             [[0.835, 0.845], [0.822, 0.826], [0.785, 0.795]],
             [[0.855, 0.865], [0.832, 0.836], [0.790, 0.800]],
@@ -458,7 +477,7 @@ def _(TwoFactorAnova):
         anova = TwoFactorAnova.from_data(data, 0.05)
         anova.print()
 
-    example11_7()
+    _()
     return
 
 
