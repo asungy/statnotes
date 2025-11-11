@@ -315,7 +315,7 @@ def two_factor_anova():
             x_ij_mean = data.select(pl.all().map_elements(lambda x: x.mean()))
 
             x_i_mean = pl.concat(
-                [data.select(pl.all().map_elements(lambda x: x.mean())).mean()] * i
+                [data.select(pl.all().map_elements(lambda x: x.mean())).mean()] * j
             )
 
             x_j_mean = pl.concat(
@@ -324,7 +324,7 @@ def two_factor_anova():
                     .select(pl.all().map_elements(lambda x: x.mean()))
                     .mean()
                 ]
-                * j
+                * i
             ).transpose()
 
             return (x_ij_mean - x_i_mean - x_j_mean + grand_mean).select(
@@ -354,11 +354,11 @@ def two_factor_anova():
 
         @classmethod
         def fixed_effects_alpha(cls, data: pl.DataFrame, i):
-            return data.transpose().to_numpy()[i - 1].mean() - cls.grand_mean(data)
+            return data.transpose().to_numpy()[i - 1].mean().mean() - cls.grand_mean(data)
 
         @classmethod
         def fixed_effects_beta(cls, data: pl.DataFrame, j):
-            return data.to_numpy()[j - 1].mean() - cls.grand_mean(data)
+            return data.to_numpy()[j - 1].mean().mean() - cls.grand_mean(data)
     return (TwoFactorAnova,)
 
 
@@ -395,7 +395,7 @@ def example11_1_from_params(TwoFactorAnova):
 
 
 @app.cell
-def _(TwoFactorAnova):
+def fixed_effects_example(TwoFactorAnova):
     def _():
         import polars as pl
 
@@ -471,7 +471,7 @@ def example11_7_from_data(TwoFactorAnova):
             [[0.855, 0.865], [0.832, 0.836], [0.790, 0.800]],
             [[0.815, 0.825], [0.800, 0.820], [0.770, 0.790]],
         ]
-        anova = TwoFactorAnova.from_data(data, 0.05)
+        anova = TwoFactorAnova.from_data(data, 0.10)
         anova.print()
 
     _()
@@ -494,6 +494,170 @@ def example11_7_from_params(TwoFactorAnova):
     _()
     return
 
+@app.cell
+def example11_9_from_data(TwoFactorAnova):
+    def _():
+        data = [
+            [[13.1, 13.2], [16.3, 15.8], [13.7, 14.3], [15.7, 15.8], [13.5, 12.5]],
+            [[15.0, 14.8], [15.7, 16.4], [13.9, 14.3], [13.7, 14.2], [13.4, 13.8]],
+            [[14.0, 14.3], [17.2, 16.7], [12.4, 12.3], [14.4, 13.9], [13.2, 13.1]],
+        ]
+        anova = TwoFactorAnova.from_data(data, 0.05)
+        anova.print()
+    _()
+    return
+
+@app.cell
+def problem16(TwoFactorAnova):
+    def _():
+        i = 3
+        j = 4
+        k = 3
+        ssa = 30763.0
+        ssb = 34185.6
+        sse = 97436.8
+        sst = 205966.6
+        ssab = sst - ssa - ssb - sse
+
+        params = {
+            "i": i,
+            "j": j,
+            "k": k,
+            "ssa": ssa,
+            "ssb": ssb,
+            "sse": sse,
+            "ssab": ssab,
+        }
+        anova = TwoFactorAnova.from_params(params, 0.05)
+        anova.print()
+    _()
+    return
+
+@app.cell
+def problem18(TwoFactorAnova):
+    def _():
+        import polars as pl
+        data = [
+            [[189.7, 188.6, 190.1], [185.1, 179.4, 177.3], [189.0, 193.0, 191.1]],
+            [[165.1, 165.9, 167.6], [161.7, 159.8, 161.6], [163.3, 166.6, 170.3]],
+        ]
+        anova = TwoFactorAnova.from_data(data, 0.05)
+        anova.print()
+
+        df = pl.DataFrame(data)
+        beta_3 = TwoFactorAnova.fixed_effects_beta(df, 3)
+        beta_1 = TwoFactorAnova.fixed_effects_beta(df, 1)
+        alpha_1 = TwoFactorAnova.fixed_effects_alpha(df, 1)
+
+        print(f"beta_3 - beta_1 + alpha_1: {beta_3 - beta_1 + alpha_1}")
+
+    _()
+    return
+
+@app.cell
+def problem22(TwoFactorAnova):
+    def _():
+        data = [
+            [[709, 659], [713, 726], [660, 645]],
+            [[668, 685], [722, 740], [692, 720]],
+            [[659, 685], [666, 684], [678, 750]],
+            [[698, 650], [704, 666], [686, 733]],
+        ]
+        anova = TwoFactorAnova.from_data(data, 0.05)
+        anova.print()
+    _()
+    return
+
+@app.cell
+def problem29():
+    def _():
+        from scipy.stats import f
+
+        alpha = 0.05
+
+        critical_value = lambda alpha, ndf, ddf: f.ppf(1-alpha, ndf, ddf)
+        pvalue = lambda fvalue, ndf, ddf: 1 - f.cdf(fvalue, ndf, ddf)
+
+        a_df = 2
+        b_df = 1
+        c_df = 3
+        ab_df = 2
+        ac_df = 6
+        bc_df = 3
+        abc_df = 6
+        e_df = 72
+
+        f_ac_critical = critical_value(alpha, ac_df, e_df)
+        f_ac_pvalue = pvalue(1.905, ac_df, e_df)
+        print(f"f_ac critical value: {f_ac_critical}")
+        print(f"f_ac pvalue: {f_ac_pvalue}")
+    _()
+    return
+
+@app.cell
+def problem30():
+    def _():
+        critical_value = lambda alpha, ndf, ddf: f.ppf(1-alpha, ndf, ddf)
+        pvalue = lambda fvalue, ndf, ddf: 1 - f.cdf(fvalue, ndf, ddf)
+
+        alpha = 0.05
+
+        i = 4
+        j = 2
+        k = 2
+        l = 1
+
+        tdf = i * j * k * l - 1
+        adf = i - 1
+        bdf = j - 1
+        cdf = k - 1
+        abdf = (i - 1) * (j - 1)
+        acdf = (i - 1) * (k - 1)
+        bcdf = (j - 1) * (k - 1)
+        abcdf = (i - 1) * (j - 1) * (k - 1)
+        edf = i * j * k * (l - 1)
+
+        ssa = 0.22625
+        ssb = 0.000025
+        ssc = 0.0036
+        ssab = 0.004325
+        ssac = 0.00065
+        ssbc = 0.000625
+        ssabc = 0
+        sst = 0.2384
+        sse = sst - ssa - ssb - ssc - ssab - ssac - ssbc - ssabc
+
+        msa = ssa / adf
+        msb = ssb / bdf
+        msc = ssc / cdf
+        msab = ssab / abdf
+        msac = ssac / acdf
+        msbc = ssbc / bcdf
+        mse = sse / abcdf # "highest order interaction assumed" mse and msabc are assumed equivalent in this example
+
+        f_a = msa / mse
+        f_b = msb / mse
+        f_c = msc / mse
+        f_ab = msab / mse
+        f_ac = msac / mse
+        f_bc = msbc / mse
+
+        critical_a = critical_value(alpha, adf, abcdf)
+        critical_b = critical_value(alpha, bdf, abcdf)
+        critical_c = critical_value(alpha, cdf, abcdf)
+        critical_ab = critical_value(alpha, abdf, abcdf)
+        critical_ac = critical_value(alpha, acdf, abcdf)
+        critical_bc = critical_value(alpha, bcdf, abcdf)
+        
+        print(f"f vs critical (a): {f_a} vs {critical_a}")
+        print(f"f vs critical (b): {f_b} vs {critical_b}")
+        print(f"f vs critical (c): {f_c} vs {critical_c}")
+        print(f"f vs critical (ab): {f_ab} vs {critical_ab}")
+        print(f"f vs critical (ac): {f_ac} vs {critical_ac}")
+        print(f"f vs critical (bc): {f_bc} vs {critical_bc}")
+
+    _()
+    return
 
 if __name__ == "__main__":
     app.run()
