@@ -78,17 +78,17 @@ def two_factor_anova():
                 or params.get("sse")
                 or print("no value assigned for sse")
             )
-            # Total sum of squares
-            self._sst: float = (
-                (data and self.__class__.data_to_sst(self._data))
-                or params.get("sst")
-                or (self._ssa + self._ssb + self._sse)
-            )
             # Interaction sum of squares.
             self._ssab: float = (
                 (data and self.__class__.data_to_ssab(self._data))
                 or params.get("ssab")
                 or print("no value assigned for ssab")
+            )
+            # Total sum of squares
+            self._sst: float = (
+                (data and self.__class__.data_to_sst(self._data))
+                or params.get("sst")
+                or (self._ssa + self._ssb + self._sse + self._ssab)
             )
             #####################################
             # Mean Squares
@@ -127,9 +127,9 @@ def two_factor_anova():
             # f test statistic of interaction
             self._f_ab: float = self.f_ab()
             # f_ab critical value
-            self._f_ab_critical_value: float = (lambda alpha: f.ppf(
-                1 - alpha, self.abdf(), self.edf()
-            ))(alpha)
+            self._f_ab_critical_value: float = (
+                lambda alpha: f.ppf(1 - alpha, self.abdf(), self.edf())
+            )(alpha)
             # f_ab pvalue
             self._f_ab_pvalue: float = (
                 lambda f_ab, abdf, edf: 1 - f.cdf(f_ab, abdf, edf)
@@ -359,7 +359,6 @@ def two_factor_anova():
         @classmethod
         def fixed_effects_beta(cls, data: pl.DataFrame, j):
             return data.to_numpy()[j - 1].mean() - cls.grand_mean(data)
-
     return (TwoFactorAnova,)
 
 
@@ -378,7 +377,6 @@ def example11_1_from_data(TwoFactorAnova):
     return
 
 
-# Does not currently work with two factor anova where K_ij > 1
 @app.cell(disabled=True)
 def example11_1_from_params(TwoFactorAnova):
     def _():
@@ -445,7 +443,6 @@ def question2(TwoFactorAnova):
     return
 
 
-# Does not currently work with two factor anova where K_ij > 1
 @app.cell(disabled=True)
 def question6(TwoFactorAnova):
     def _():
@@ -467,7 +464,7 @@ def question6(TwoFactorAnova):
 
 
 @app.cell
-def example11_7(TwoFactorAnova):
+def example11_7_from_data(TwoFactorAnova):
     def _():
         data = [
             [[0.835, 0.845], [0.822, 0.826], [0.785, 0.795]],
@@ -477,6 +474,23 @@ def example11_7(TwoFactorAnova):
         anova = TwoFactorAnova.from_data(data, 0.05)
         anova.print()
 
+    _()
+    return
+
+@app.cell
+def example11_7_from_params(TwoFactorAnova):
+    def _():
+        params = {
+            "i": 3,
+            "j": 3,
+            "k": 2,
+            "ssa": 0.0020893333333333306,
+            "ssb": 0.008297333333333285,
+            "sse": 0.0006659999999999991,
+            "ssab": 0.0003253333333333344,
+        }
+        anova = TwoFactorAnova.from_params(params, 0.05)
+        anova.print()
     _()
     return
 
